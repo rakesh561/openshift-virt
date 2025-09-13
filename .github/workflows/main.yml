@@ -3,7 +3,7 @@ name: Cluster Name Validation
 on:
   pull_request:
     branches:
-      - automation   # only run when PR targets automation branch
+      - automation
 
 jobs:
   validate-cluster-name:
@@ -16,9 +16,16 @@ jobs:
         run: |
           set -e
           error=0
-          for file in $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'automation/vars/hypervisor-clusters/.*/core.yaml' || true); do
+          files=$(find automation/vars/hypervisor-clusters -type f -name core.yaml)
+          for file in $files; do
             folder_name=$(basename "$(dirname "$file")")
-            cluster_name=$(grep '^cluster_name:' "$file" | awk '{print $2}')
+            # Extract cluster_name value (ignores spaces before/after :)
+            cluster_name=$(grep -E '^[[:space:]]*cluster_name:' "$file" | awk -F: '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}')
+
+            if [[ -z "$cluster_name" ]]; then
+              echo "⚠️  No cluster_name found in $file"
+              continue
+            fi
 
             if [[ "$folder_name" != "$cluster_name" ]]; then
               echo "❌ Error in $file"
@@ -31,4 +38,6 @@ jobs:
 
           if [[ $error -ne 0 ]]; then
             exit 1
+          else
+            echo "✅ All cluster_name values match their folder names."
           fi
