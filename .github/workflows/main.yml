@@ -1,0 +1,34 @@
+name: Cluster Name Validation
+
+on:
+  pull_request:
+    branches:
+      - automation   # only run when PR targets automation branch
+
+jobs:
+  validate-cluster-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate cluster_name against folder name
+        run: |
+          set -e
+          error=0
+          for file in $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'automation/vars/hypervisor-clusters/.*/core.yaml' || true); do
+            folder_name=$(basename "$(dirname "$file")")
+            cluster_name=$(grep '^cluster_name:' "$file" | awk '{print $2}')
+
+            if [[ "$folder_name" != "$cluster_name" ]]; then
+              echo "❌ Error in $file"
+              echo "   Folder name     = $folder_name"
+              echo "   cluster_name    = $cluster_name"
+              echo "They must match!"
+              error=1
+            fi
+          done
+
+          if [[ $error -ne 0 ]]; then
+            exit 1
+          fi
